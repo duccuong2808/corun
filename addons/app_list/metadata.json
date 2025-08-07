@@ -1,0 +1,8 @@
+{
+  "name": "App List",
+  "version": "1.0.0",
+  "author": "Community Contributor",
+  "description": "Library providing commands to manage application lists",
+  "shells": ["bash", "zsh"],
+  "commands": ["ls", "size"]
+}

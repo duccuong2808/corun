@@ -1,0 +1,8 @@
+{
+  "name": "Homebrew Ultis",
+  "version": "1.0.0",
+  "author": "Community Contributor",
+  "description": "Custom Homebrew formulae for productivity and development.",
+  "shells": ["bash", "zsh"],
+  "commands": ["package"]
+}

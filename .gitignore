@@ -165,8 +165,3 @@ ehthumbs_vista.db
 *.log
 config.local.json
 .claude/settings.local.json
-
-# Ignore all addons except core ones
-addons/*
-!addons/app_list/
-!addons/sys_info/

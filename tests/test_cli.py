@@ -32,9 +32,10 @@ class TestDynamicCommandGeneration:
         # Create dynamic command
         command = create_dynamic_command(script_path)
         
-        # Verify command properties
-        assert command.name == "test-command"  # Click normalizes underscores to hyphens
-        assert "test_command" in command.callback.__doc__
+        # Verify command properties  
+        assert command.name == "test"  # Click converts underscores in function name
+        assert command.callback.__name__ == "test_command"  # The script stem we set
+        assert "test_command" in command.callback.__doc__  # Doc contains script name
     
     def test_create_dynamic_group(self):
         """Test creating a dynamic group with sub-commands."""

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "author": "Community Contributor",
   "description": "Library providing commands to manage application lists",
+  "library_id": "app",
   "shells": ["bash", "zsh"],
   "commands": ["ls", "size"]
 }

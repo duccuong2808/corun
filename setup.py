@@ -19,10 +19,10 @@ if requirements_path.exists():
 
 setup(
     name="corun",
-    version="1.0.0",
+    version="0.0.1",
     author="Corun Community",
-    author_email="community@corun.dev",
-    description="Dynamic CLI tool with community-contributed command libraries",
+    author_email="duccuong2808.dev@gmail.com",
+    description="Extensible CLI for freely adding custom bash/zsh commands",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/corun-community/corun",

@@ -32,6 +32,7 @@ class TestLibraryManager:
             "version": "1.0.0",
             "author": "Test Author",
             "description": f"A test library named {lib_name}",
+            "library_id": lib_name.replace("_", "-"),
             "shells": ["bash"],
             "commands": ["hello", "world"]
         }

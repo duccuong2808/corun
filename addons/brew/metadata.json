@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "author": "Community Contributor",
   "description": "Custom Homebrew formulae for productivity and development.",
+  "library_id": "brew",
   "shells": ["bash", "zsh"],
   "commands": ["package"]
 }

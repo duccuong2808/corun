@@ -22,8 +22,6 @@ def create_dynamic_command(script_path):
     Returns:
         click.Command: Dynamic Click command
     """
-    @click.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
-    @click.pass_context
     def dynamic_command(ctx):
         """Execute the shell script."""
         if script_path.exists():
@@ -37,7 +35,8 @@ def create_dynamic_command(script_path):
     dynamic_command.__name__ = script_path.stem
     dynamic_command.__doc__ = f"Run {script_path.stem} command from {script_path.parent.name} library."
     
-    return dynamic_command
+    # Apply Click decorators after setting metadata
+    return click.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})(click.pass_context(dynamic_command))
 
 
 def create_dynamic_group(group_name, library_path):
@@ -166,10 +165,17 @@ def load_library_commands():
     
     for library_dir in LIBRARY_PATH.iterdir():
         if library_dir.is_dir() and (library_dir / "metadata.json").exists():
-            # Convert directory name to command group name (app_list -> app-list)
-            group_name = library_dir.name.replace("_", "-")
-            group = create_dynamic_group(group_name, library_dir)
-            cli.add_command(group)
+            # Load metadata to get library_id
+            metadata_path = library_dir / "metadata.json"
+            try:
+                with open(metadata_path, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                # Use library_id from metadata, fallback to directory name conversion
+                group_name = metadata.get('library_id', library_dir.name.replace("_", "-"))
+                group = create_dynamic_group(group_name, library_dir)
+                cli.add_command(group)
+            except (json.JSONDecodeError, IOError) as e:
+                click.echo(f"Warning: Could not load library {library_dir.name}: {e}", err=True)
 
 
 # Load library commands when module is imported

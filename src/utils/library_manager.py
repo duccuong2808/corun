@@ -41,7 +41,8 @@ class LibraryManager:
                         with open(metadata_path, 'r', encoding='utf-8') as f:
                             metadata = json.load(f)
                         metadata['path'] = str(lib_dir)
-                        metadata['library_id'] = lib_dir.name
+                        # Use library_id from metadata if available, otherwise fallback to directory name
+                        metadata['library_id'] = metadata.get('library_id', lib_dir.name)
                         libraries.append(metadata)
                     except (json.JSONDecodeError, IOError) as e:
                         click.echo(f"Warning: Could not read metadata for {lib_dir.name}: {e}")
@@ -53,25 +54,29 @@ class LibraryManager:
         Get metadata for a specific library.
         
         Args:
-            library_id (str): Library identifier
+            library_id (str): Library identifier (from metadata, not directory name)
             
         Returns:
             Optional[Dict]: Library metadata or None if not found
         """
-        lib_path = self.library_path / library_id
-        metadata_path = lib_path / "metadata.json"
+        # Search through all libraries to find one with matching library_id
+        for lib_dir in self.library_path.iterdir():
+            if lib_dir.is_dir():
+                metadata_path = lib_dir / "metadata.json"
+                if metadata_path.exists():
+                    try:
+                        with open(metadata_path, 'r', encoding='utf-8') as f:
+                            metadata = json.load(f)
+                        # Check if this library matches the requested library_id
+                        lib_id = metadata.get('library_id', lib_dir.name)
+                        if lib_id == library_id:
+                            metadata['path'] = str(lib_dir)
+                            metadata['library_id'] = lib_id
+                            return metadata
+                    except (json.JSONDecodeError, IOError):
+                        continue
         
-        if not metadata_path.exists():
-            return None
-        
-        try:
-            with open(metadata_path, 'r', encoding='utf-8') as f:
-                metadata = json.load(f)
-            metadata['path'] = str(lib_path)
-            metadata['library_id'] = library_id
-            return metadata
-        except (json.JSONDecodeError, IOError):
-            return None
+        return None
     
     def validate_library_structure(self, lib_path: Path) -> bool:
         """
@@ -97,7 +102,7 @@ class LibraryManager:
             return False
         
         # Validate required metadata fields
-        required_fields = ['name', 'version', 'description', 'commands']
+        required_fields = ['name', 'version', 'description', 'library_id', 'commands']
         for field in required_fields:
             if field not in metadata:
                 click.echo(f"Error: Missing required field '{field}' in metadata.json")
@@ -172,11 +177,13 @@ class LibraryManager:
         Returns:
             bool: True if removal successful
         """
-        lib_path = self.library_path / library_id
-        
-        if not lib_path.exists():
+        # Find the library by library_id
+        metadata = self.get_library_metadata(library_id)
+        if not metadata:
             click.echo(f"Error: Library '{library_id}' is not installed")
             return False
+        
+        lib_path = Path(metadata['path'])
         
         if not click.confirm(f"Remove library '{library_id}'?"):
             return False
@@ -216,6 +223,7 @@ class LibraryManager:
                 "version": "1.0.0",
                 "author": "Local Developer",
                 "description": description,
+                "library_id": library_id,
                 "shells": ["bash", "zsh"],
                 "commands": ["example"]
             }

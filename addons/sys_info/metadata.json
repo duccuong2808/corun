@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "author": "Community Contributor",
   "description": "Library providing commands to view system information",
+  "library_id": "sys",
   "shells": ["bash", "zsh"],
   "commands": ["cpu", "mem"]
 }

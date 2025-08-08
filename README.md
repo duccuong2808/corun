@@ -62,6 +62,42 @@ corun library create network-tools "Network Tools" "Network utility commands"
 corun library remove my-lib
 ```
 
+### Shell Completion (Autocomplete)
+
+Corun supports shell autocompletion for commands and library IDs. To enable it:
+
+```bash
+# Set up completion for your shell
+corun completion          # Auto-detect shell and show instructions
+corun completion bash     # Show bash-specific setup instructions
+corun completion zsh      # Show zsh-specific setup instructions
+corun completion fish     # Show fish-specific setup instructions
+```
+
+After setting up, you can use TAB completion:
+
+```bash
+corun <TAB>               # Show all available commands
+corun library <TAB>       # Show library management commands  
+corun library info <TAB>  # Autocomplete library IDs
+corun app <TAB>           # Show commands in app library
+corun sys <TAB>           # Show commands in sys library
+```
+
+**Quick Setup Examples:**
+
+For Bash:
+```bash
+echo 'eval "$(_CORUN_COMPLETE=bash_source corun)"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+For Zsh:
+```bash
+echo 'eval "$(_CORUN_COMPLETE=zsh_source corun)"' >> ~/.zshrc
+source ~/.zshrc
+```
+
 ## Creating Addons
 
 1. Create a directory in `addons/` with your addon name (e.g., `addons/network_tools/`)

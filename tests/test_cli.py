@@ -6,7 +6,7 @@ import shutil
 import json
 from pathlib import Path
 from click.testing import CliRunner
-from src.cli import cli, create_dynamic_command, create_dynamic_group
+from src.cli import cli, create_dynamic_command, create_dynamic_group, get_library_ids, complete_library_id
 
 
 class TestDynamicCommandGeneration:
@@ -109,6 +109,72 @@ class TestCLIIntegration:
         assert "install" in result.output
         assert "remove" in result.output
         assert "create" in result.output
+
+
+class TestAutocomplete:
+    """Test autocomplete functionality."""
+    
+    def setup_method(self):
+        """Set up test environment."""
+        self.runner = CliRunner()
+    
+    def test_get_library_ids(self):
+        """Test getting library IDs for autocomplete."""
+        library_ids = get_library_ids()
+        assert isinstance(library_ids, list)
+        # Should include the built-in libraries
+        expected_ids = {'app', 'sys', 'brew'}
+        actual_ids = set(library_ids)
+        # At least some expected IDs should be present
+        assert len(expected_ids.intersection(actual_ids)) > 0
+    
+    def test_complete_library_id(self):
+        """Test library ID autocomplete function."""
+        # Mock context and param
+        class MockCtx:
+            pass
+        
+        class MockParam:
+            pass
+        
+        ctx = MockCtx()
+        param = MockParam()
+        
+        # Test with incomplete 'a' - should match 'app' if it exists
+        completions = complete_library_id(ctx, param, 'a')
+        if 'app' in get_library_ids():
+            assert 'app' in completions
+        
+        # Test with non-matching string
+        completions = complete_library_id(ctx, param, 'nonexistent')
+        assert len(completions) == 0
+    
+    def test_completion_command_exists(self):
+        """Test that completion command exists and runs."""
+        result = self.runner.invoke(cli, ["completion", "--help"])
+        assert result.exit_code == 0
+        assert "shell completion" in result.output.lower()
+    
+    def test_completion_command_bash(self):
+        """Test completion command for bash."""
+        result = self.runner.invoke(cli, ["completion", "bash"])
+        assert result.exit_code == 0
+        assert "bash_source" in result.output
+        assert "bashrc" in result.output
+    
+    def test_completion_command_zsh(self):
+        """Test completion command for zsh."""
+        result = self.runner.invoke(cli, ["completion", "zsh"])
+        assert result.exit_code == 0
+        assert "zsh_source" in result.output
+        assert "zshrc" in result.output
+    
+    def test_completion_command_fish(self):
+        """Test completion command for fish."""
+        result = self.runner.invoke(cli, ["completion", "fish"])
+        assert result.exit_code == 0
+        assert "fish_source" in result.output
+        assert "config.fish" in result.output
 
 
 if __name__ == "__main__":

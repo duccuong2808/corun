@@ -22,10 +22,14 @@ def create_dynamic_command(script_path):
     Returns:
         click.Command: Dynamic Click command
     """
-    def dynamic_command():
+    @click.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
+    @click.pass_context
+    def dynamic_command(ctx):
         """Execute the shell script."""
         if script_path.exists():
-            run_shell_script(script_path)
+            # Pass any extra arguments from the command line to the script
+            args = ctx.args if ctx.args else None
+            run_shell_script(script_path, args)
         else:
             click.echo(f"Error: Script {script_path} not found.", err=True)
     
@@ -33,7 +37,7 @@ def create_dynamic_command(script_path):
     dynamic_command.__name__ = script_path.stem
     dynamic_command.__doc__ = f"Run {script_path.stem} command from {script_path.parent.name} library."
     
-    return click.command()(dynamic_command)
+    return dynamic_command
 
 
 def create_dynamic_group(group_name, library_path):

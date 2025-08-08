@@ -7,12 +7,13 @@ import stat
 from pathlib import Path
 
 
-def run_shell_script(script_path):
+def run_shell_script(script_path, args=None):
     """
     Execute a shell script and handle output.
     
     Args:
         script_path (Path): Path to the shell script to execute
+        args (list): Optional list of arguments to pass to the script
     """
     script_path = Path(script_path)
     
@@ -27,9 +28,14 @@ def run_shell_script(script_path):
         return False
     
     try:
+        # Build command with arguments
+        cmd = [str(script_path)]
+        if args:
+            cmd.extend(args)
+        
         # Use the script's shebang to determine interpreter
         result = subprocess.run(
-            [str(script_path)],
+            cmd,
             capture_output=True,
             text=True,
             check=True,

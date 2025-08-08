@@ -51,15 +51,33 @@ corun sys-info mem    # Display memory information
 
 ### Library Management
 
+Corun supports both project-level and user-level addon libraries:
+- **Project libraries**: Located in `./addons/` (bundled with the project)
+- **User libraries**: Located in `~/.corun/addons/` (personal libraries)
+
 ```bash
-# Install a library from local path
+# List all installed libraries (shows source: [project] or [user])
+corun library list
+
+# Install a library to user directory (default)
 corun library install /path/to/my-library --id my-lib
+corun library install /path/to/my-library --user
 
-# Create a new library template
+# Install a library to project directory
+corun library install /path/to/my-library --global
+
+# Create a new library template in user directory (default)
 corun library create network-tools "Network Tools" "Network utility commands"
+corun library create network-tools "Network Tools" "Network utility commands" --user
 
-# Remove a library
+# Create a new library template in project directory
+corun library create network-tools "Network Tools" "Network utility commands" --global
+
+# Remove a library (automatically finds the correct location)
 corun library remove my-lib
+
+# Show detailed library information (including source location)
+corun library info my-lib
 ```
 
 ### Shell Completion (Autocomplete)
@@ -100,6 +118,20 @@ source ~/.zshrc
 
 ## Creating Addons
 
+### User Addons (Recommended)
+Create personal addons in your user directory:
+
+1. Corun will automatically create `~/.corun/addons/` when needed
+2. Create a new library template:
+   ```bash
+   corun library create my-tools "My Tools" "Personal utility commands"
+   ```
+3. Edit the generated files in `~/.corun/addons/my-tools/`
+4. Add shell scripts with executable permissions
+
+### Project Addons
+Create addons bundled with the project:
+
 1. Create a directory in `addons/` with your addon name (e.g., `addons/network_tools/`)
 2. Add `metadata.json`:
    ```json
@@ -108,12 +140,18 @@ source ~/.zshrc
      "version": "1.0.0",
      "author": "Your Name",
      "description": "Network utility commands",
+     "library_id": "network",
      "shells": ["bash", "zsh"],
      "commands": ["ping", "trace"]
    }
    ```
 3. Add shell scripts (e.g., `ping.sh`, `trace.sh`) with executable permissions
-4. Install using `corun library install ./addons/network_tools`
+4. Install using `corun library install ./addons/network_tools --global`
+
+### Library Priority
+- **Project libraries** (./addons/) take precedence over user libraries
+- If both have the same library_id, only the project library will be loaded
+- This allows projects to override user libraries when needed
 
 ## Development
 

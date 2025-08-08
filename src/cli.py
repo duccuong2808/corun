@@ -8,23 +8,38 @@ from .utils.shell import run_shell_script
 from .utils.library_manager import LibraryManager
 
 
-# Path to the addons directory
-LIBRARY_PATH = Path(__file__).parent.parent / "addons"
+# Paths to the addons directories
+PROJECT_LIBRARY_PATH = Path(__file__).parent.parent / "addons"
+USER_LIBRARY_PATH = Path.home() / ".corun" / "addons"
+
+def get_library_paths():
+    """Get all library paths (project and user addons)."""
+    paths = [PROJECT_LIBRARY_PATH]
+    if USER_LIBRARY_PATH.exists():
+        paths.append(USER_LIBRARY_PATH)
+    return paths
+
+# Backward compatibility
+LIBRARY_PATH = PROJECT_LIBRARY_PATH
 
 
 def get_library_ids():
     """Get list of available library IDs for autocomplete."""
-    manager = LibraryManager(LIBRARY_PATH)
-    libraries = manager.list_installed_libraries()
-    return [lib['library_id'] for lib in libraries]
+    library_ids = []
+    for library_path in get_library_paths():
+        manager = LibraryManager(library_path)
+        libraries = manager.list_installed_libraries()
+        library_ids.extend([lib['library_id'] for lib in libraries])
+    return library_ids
 
 
 def get_library_commands(library_id):
     """Get list of commands for a specific library."""
-    manager = LibraryManager(LIBRARY_PATH)
-    metadata = manager.get_library_metadata(library_id)
-    if metadata:
-        return metadata.get('commands', [])
+    for library_path in get_library_paths():
+        manager = LibraryManager(library_path)
+        metadata = manager.get_library_metadata(library_id)
+        if metadata:
+            return metadata.get('commands', [])
     return []
 
 
@@ -144,7 +159,6 @@ def completion(shell):
         corun completion fish     # Show fish completion setup
         corun completion          # Auto-detect shell from environment
     """
-    import shutil
     
     # Auto-detect shell if not provided
     if not shell:
@@ -212,17 +226,28 @@ def library():
 @library.command()
 def list():
     """List installed libraries."""
-    manager = LibraryManager(LIBRARY_PATH)
-    libraries = manager.list_installed_libraries()
+    all_libraries = []
     
-    if not libraries:
+    for library_path in get_library_paths():
+        manager = LibraryManager(library_path)
+        libraries = manager.list_installed_libraries()
+        # Add source path info to each library
+        for lib in libraries:
+            if library_path == PROJECT_LIBRARY_PATH:
+                lib['source'] = 'project'
+            else:
+                lib['source'] = 'user'
+        all_libraries.extend(libraries)
+    
+    if not all_libraries:
         click.echo("No libraries installed.")
         return
     
     click.echo("Installed libraries:")
-    for lib in libraries:
+    for lib in all_libraries:
         commands = ", ".join(lib.get('commands', []))
-        click.echo(f"  • {lib['name']} (v{lib.get('version', 'unknown')}) - {lib.get('description', 'No description')}")
+        source_label = f" [{lib['source']}]" if lib.get('source') else ""
+        click.echo(f"  • {lib['name']} (v{lib.get('version', 'unknown')}){source_label} - {lib.get('description', 'No description')}")
         click.echo(f"    Commands: {commands}")
         click.echo(f"    ID: {lib['library_id']}")
         click.echo()
@@ -232,8 +257,15 @@ def list():
 @click.argument('library_id', shell_complete=complete_library_id)
 def info(library_id):
     """Show detailed information about a library."""
-    manager = LibraryManager(LIBRARY_PATH)
-    metadata = manager.get_library_metadata(library_id)
+    metadata = None
+    source_type = None
+    
+    for library_path in get_library_paths():
+        manager = LibraryManager(library_path)
+        metadata = manager.get_library_metadata(library_id)
+        if metadata:
+            source_type = 'project' if library_path == PROJECT_LIBRARY_PATH else 'user'
+            break
     
     if not metadata:
         click.echo(f"Library '{library_id}' not found.")
@@ -245,57 +277,98 @@ def info(library_id):
     click.echo(f"Description: {metadata.get('description', 'No description')}")
     click.echo(f"Supported shells: {', '.join(metadata.get('shells', []))}")
     click.echo(f"Commands: {', '.join(metadata.get('commands', []))}")
+    click.echo(f"Source: {source_type}")
     click.echo(f"Path: {metadata['path']}")
 
 
 @library.command()
 @click.argument('source_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.option('--id', 'library_id', help='Custom library ID (defaults to directory name)')
-def install(source_path, library_id):
+@click.option('--user', is_flag=True, help='Install to user directory (~/.corun/addons)', default=True)
+@click.option('--global', 'install_global', is_flag=True, help='Install to project directory (./addons)')
+def install(source_path, library_id, user, install_global):
     """Install a library from a local path."""
-    manager = LibraryManager(LIBRARY_PATH)
+    if install_global:
+        target_path = PROJECT_LIBRARY_PATH
+        location = "project"
+    else:
+        target_path = USER_LIBRARY_PATH
+        location = "user"
+        # Create user directory if it doesn't exist
+        target_path.mkdir(parents=True, exist_ok=True)
+    
+    manager = LibraryManager(target_path)
     if manager.install_library_from_path(Path(source_path), library_id):
-        click.echo("Library installed successfully. Restart corun to use new commands.")
+        click.echo(f"Library installed successfully to {location} directory. Restart corun to use new commands.")
 
 
 @library.command()
 @click.argument('library_id', shell_complete=complete_library_id)
 def remove(library_id):
     """Remove an installed library."""
-    manager = LibraryManager(LIBRARY_PATH)
-    if manager.remove_library(library_id):
-        click.echo("Library removed successfully.")
+    # Find the library in available paths
+    for library_path in get_library_paths():
+        manager = LibraryManager(library_path)
+        metadata = manager.get_library_metadata(library_id)
+        if metadata:
+            source_type = 'project' if library_path == PROJECT_LIBRARY_PATH else 'user'
+            if manager.remove_library(library_id):
+                click.echo(f"Library '{library_id}' removed successfully from {source_type} directory.")
+            return
+    
+    click.echo(f"Library '{library_id}' not found.")
 
 
 @library.command()
 @click.argument('library_id')
 @click.argument('name')
 @click.argument('description')
-def create(library_id, name, description):
+@click.option('--user', is_flag=True, help='Create in user directory (~/.corun/addons)', default=True)
+@click.option('--global', 'create_global', is_flag=True, help='Create in project directory (./addons)')
+def create(library_id, name, description, user, create_global):
     """Create a new library template."""
-    manager = LibraryManager(LIBRARY_PATH)
-    manager.create_library_template(library_id, name, description)
+    if create_global:
+        target_path = PROJECT_LIBRARY_PATH
+        location = "project"
+    else:
+        target_path = USER_LIBRARY_PATH
+        location = "user"
+        # Create user directory if it doesn't exist
+        target_path.mkdir(parents=True, exist_ok=True)
+    
+    manager = LibraryManager(target_path)
+    if manager.create_library_template(library_id, name, description):
+        click.echo(f"Library template created in {location} directory.")
 
 
 # Dynamically add command groups from library directories
 def load_library_commands():
     """Load and register command groups from library directories."""
-    if not LIBRARY_PATH.exists():
-        return
+    loaded_libraries = set()  # Track loaded library IDs to avoid conflicts
     
-    for library_dir in LIBRARY_PATH.iterdir():
-        if library_dir.is_dir() and (library_dir / "metadata.json").exists():
-            # Load metadata to get library_id
-            metadata_path = library_dir / "metadata.json"
-            try:
-                with open(metadata_path, 'r', encoding='utf-8') as f:
-                    metadata = json.load(f)
-                # Use library_id from metadata, fallback to directory name conversion
-                group_name = metadata.get('library_id', library_dir.name.replace("_", "-"))
-                group = create_dynamic_group(group_name, library_dir)
-                cli.add_command(group)
-            except (json.JSONDecodeError, IOError) as e:
-                click.echo(f"Warning: Could not load library {library_dir.name}: {e}", err=True)
+    for library_path in get_library_paths():
+        if not library_path.exists():
+            continue
+            
+        for library_dir in library_path.iterdir():
+            if library_dir.is_dir() and (library_dir / "metadata.json").exists():
+                # Load metadata to get library_id
+                metadata_path = library_dir / "metadata.json"
+                try:
+                    with open(metadata_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                    # Use library_id from metadata, fallback to directory name conversion
+                    group_name = metadata.get('library_id', library_dir.name.replace("_", "-"))
+                    
+                    # Skip if we've already loaded a library with this ID (project libs take precedence)
+                    if group_name in loaded_libraries:
+                        continue
+                        
+                    group = create_dynamic_group(group_name, library_dir)
+                    cli.add_command(group)
+                    loaded_libraries.add(group_name)
+                except (json.JSONDecodeError, IOError) as e:
+                    click.echo(f"Warning: Could not load library {library_dir.name}: {e}", err=True)
 
 
 # Load library commands when module is imported

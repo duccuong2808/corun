@@ -6,7 +6,7 @@ import shutil
 import json
 from pathlib import Path
 from click.testing import CliRunner
-from src.cli import cli, create_dynamic_command, create_dynamic_group, get_library_ids, complete_library_id
+from src.cli import cli, create_dynamic_command, create_dynamic_group, get_library_ids, complete_library_id, get_library_paths, PROJECT_LIBRARY_PATH, USER_LIBRARY_PATH
 
 
 class TestDynamicCommandGeneration:
@@ -175,6 +175,108 @@ class TestAutocomplete:
         assert result.exit_code == 0
         assert "fish_source" in result.output
         assert "config.fish" in result.output
+
+
+class TestUserAddonDirectory:
+    """Test user addon directory functionality."""
+    
+    def setup_method(self):
+        """Set up test environment."""
+        self.runner = CliRunner()
+        self.temp_user_dir = Path(tempfile.mkdtemp()) / ".corun" / "addons"
+        self.temp_user_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Mock USER_LIBRARY_PATH to use temp directory
+        self.original_user_path = USER_LIBRARY_PATH
+        import src.cli
+        src.cli.USER_LIBRARY_PATH = self.temp_user_dir
+    
+    def teardown_method(self):
+        """Clean up test environment."""
+        if self.temp_user_dir.parent.parent.exists():
+            shutil.rmtree(self.temp_user_dir.parent.parent)
+        
+        # Restore original path
+        import src.cli
+        src.cli.USER_LIBRARY_PATH = self.original_user_path
+    
+    def test_get_library_paths(self):
+        """Test get_library_paths function."""
+        paths = get_library_paths()
+        assert PROJECT_LIBRARY_PATH in paths
+        # USER_LIBRARY_PATH should be included if it exists
+        if self.temp_user_dir.exists():
+            assert self.temp_user_dir in paths
+    
+    def test_user_library_creation(self):
+        """Test creating a library in user directory."""
+        # Create a test library in user directory
+        user_lib_dir = self.temp_user_dir / "test_user_lib"
+        user_lib_dir.mkdir()
+        
+        # Create metadata.json
+        metadata = {
+            "name": "Test User Library",
+            "version": "1.0.0",
+            "author": "Test User",
+            "description": "A test user library",
+            "library_id": "test-user",
+            "shells": ["bash"],
+            "commands": ["hello"]
+        }
+        (user_lib_dir / "metadata.json").write_text(json.dumps(metadata))
+        
+        # Create shell script
+        hello_script = user_lib_dir / "hello.sh"
+        hello_script.write_text("#!/bin/bash\necho 'Hello from user lib'")
+        hello_script.chmod(0o755)
+        
+        # Test that library IDs include user library
+        library_ids = get_library_ids()
+        assert "test-user" in library_ids
+    
+    def test_library_list_shows_source(self):
+        """Test that library list shows source (project/user)."""
+        result = self.runner.invoke(cli, ["library", "list"])
+        assert result.exit_code == 0
+        # Should show source indicators like [project] or [user]
+        assert "project" in result.output.lower() or "user" in result.output.lower()
+    
+    def test_install_to_user_directory_default(self):
+        """Test that install defaults to user directory."""
+        # Create a temporary source library
+        source_dir = Path(tempfile.mkdtemp()) / "test_source"
+        source_dir.mkdir()
+        
+        try:
+            # Create metadata and script
+            metadata = {
+                "name": "Test Source",
+                "version": "1.0.0",
+                "author": "Test",
+                "description": "Test library",
+                "library_id": "test-source",
+                "shells": ["bash"],
+                "commands": ["test"]
+            }
+            (source_dir / "metadata.json").write_text(json.dumps(metadata))
+            
+            test_script = source_dir / "test.sh"
+            test_script.write_text("#!/bin/bash\necho 'test'")
+            test_script.chmod(0o755)
+            
+            # Install library (should default to user directory)
+            result = self.runner.invoke(cli, ["library", "install", str(source_dir)])
+            assert result.exit_code == 0
+            assert "user directory" in result.output
+            
+            # Verify library was installed in user directory
+            installed_lib = self.temp_user_dir / "test_source"
+            assert installed_lib.exists()
+            
+        finally:
+            if source_dir.exists():
+                shutil.rmtree(source_dir.parent)
 
 
 if __name__ == "__main__":

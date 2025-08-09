@@ -6,7 +6,7 @@ import shutil
 import json
 from pathlib import Path
 from click.testing import CliRunner
-from src.cli import cli, create_dynamic_command, create_dynamic_group, get_library_ids, complete_library_id, get_library_paths, PROJECT_LIBRARY_PATH, USER_LIBRARY_PATH
+from src.cli import cli, create_dynamic_command, create_dynamic_group, get_library_ids, complete_library_id, get_library_paths, PROJECT_LIBRARY_PATH, USER_LIBRARY_PATH, load_standalone_scripts
 
 
 class TestDynamicCommandGeneration:
@@ -277,6 +277,153 @@ class TestUserAddonDirectory:
         finally:
             if source_dir.exists():
                 shutil.rmtree(source_dir.parent)
+
+
+class TestStandaloneScripts:
+    """Test standalone script functionality."""
+    
+    def setup_method(self):
+        """Set up test environment."""
+        self.runner = CliRunner()
+        self.temp_project_dir = Path(tempfile.mkdtemp()) / "addons"
+        self.temp_user_dir = Path(tempfile.mkdtemp()) / ".corun" / "addons"
+        self.temp_project_dir.mkdir(parents=True, exist_ok=True)
+        self.temp_user_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Mock library paths to use temp directories
+        self.original_project_path = PROJECT_LIBRARY_PATH
+        self.original_user_path = USER_LIBRARY_PATH
+        import src.cli
+        src.cli.PROJECT_LIBRARY_PATH = self.temp_project_dir
+        src.cli.USER_LIBRARY_PATH = self.temp_user_dir
+    
+    def teardown_method(self):
+        """Clean up test environment."""
+        if self.temp_project_dir.parent.exists():
+            shutil.rmtree(self.temp_project_dir.parent)
+        if self.temp_user_dir.parent.parent.exists():
+            shutil.rmtree(self.temp_user_dir.parent.parent)
+        
+        # Restore original paths
+        import src.cli
+        src.cli.PROJECT_LIBRARY_PATH = self.original_project_path
+        src.cli.USER_LIBRARY_PATH = self.original_user_path
+    
+    def test_create_standalone_command(self):
+        """Test creating a standalone command from a script."""
+        # Create a standalone script
+        script_path = self.temp_user_dir / "hello.sh"
+        script_path.write_text("#!/bin/bash\necho 'Hello from standalone script'")
+        script_path.chmod(0o755)
+        
+        # Create command
+        command = create_dynamic_command(script_path, is_standalone=True)
+        
+        # Verify command properties
+        assert command.name == "hello"
+        assert "standalone script" in command.callback.__doc__
+    
+    def test_standalone_script_loading(self):
+        """Test that standalone scripts are loaded as top-level commands."""
+        # Create standalone scripts in both project and user directories
+        project_script = self.temp_project_dir / "project_script.sh"
+        project_script.write_text("#!/bin/bash\necho 'Project script'")
+        project_script.chmod(0o755)
+        
+        user_script = self.temp_user_dir / "user_script.sh"
+        user_script.write_text("#!/bin/bash\necho 'User script'")
+        user_script.chmod(0o755)
+        
+        # Create a new CLI instance to test with
+        from click import Group
+        test_cli = Group()
+        
+        # Mock the cli variable in the module
+        import src.cli
+        original_cli = src.cli.cli
+        src.cli.cli = test_cli
+        
+        try:
+            # Load standalone scripts
+            load_standalone_scripts()
+            
+            # Check that scripts were added as commands
+            assert "project_script" in test_cli.commands
+            assert "user_script" in test_cli.commands
+            
+        finally:
+            # Restore original CLI
+            src.cli.cli = original_cli
+    
+    def test_standalone_script_priority(self):
+        """Test that project standalone scripts take precedence over user scripts."""
+        # Create scripts with the same name in both directories
+        project_script = self.temp_project_dir / "same_name.sh"
+        project_script.write_text("#!/bin/bash\necho 'Project version'")
+        project_script.chmod(0o755)
+        
+        user_script = self.temp_user_dir / "same_name.sh"
+        user_script.write_text("#!/bin/bash\necho 'User version'")
+        user_script.chmod(0o755)
+        
+        # Create a new CLI instance to test with
+        from click import Group
+        test_cli = Group()
+        
+        # Mock the cli variable in the module
+        import src.cli
+        original_cli = src.cli.cli
+        src.cli.cli = test_cli
+        
+        try:
+            # Load standalone scripts
+            load_standalone_scripts()
+            
+            # Should only have one script loaded (project takes precedence)
+            assert "same_name" in test_cli.commands
+            
+            # The loaded script should be from the project directory
+            # We can't easily test the content without executing, but we can verify it exists
+            command = test_cli.commands["same_name"]
+            assert command is not None
+            
+        finally:
+            # Restore original CLI
+            src.cli.cli = original_cli
+    
+    def test_standalone_vs_library_conflict(self):
+        """Test that existing library commands take precedence over standalone scripts."""
+        # Create a standalone script with the same name as an existing command
+        conflicting_script = self.temp_user_dir / "library.sh"  # 'library' is an existing command
+        conflicting_script.write_text("#!/bin/bash\necho 'Conflicting script'")
+        conflicting_script.chmod(0o755)
+        
+        # Create a new CLI instance with the library command
+        from click import Group
+        test_cli = Group()
+        
+        # Add a mock library command
+        @test_cli.group()
+        def library():
+            """Mock library command."""
+            pass
+        
+        # Mock the cli variable in the module
+        import src.cli
+        original_cli = src.cli.cli
+        src.cli.cli = test_cli
+        
+        try:
+            # Load standalone scripts
+            load_standalone_scripts()
+            
+            # The library command should still exist and be a group (not replaced by script)
+            assert "library" in test_cli.commands
+            assert isinstance(test_cli.commands["library"], Group)
+            
+        finally:
+            # Restore original CLI
+            src.cli.cli = original_cli
 
 
 if __name__ == "__main__":

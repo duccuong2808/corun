@@ -121,17 +121,37 @@ source ~/.zshrc
 ### User Addons (Recommended)
 Create personal addons in your user directory:
 
-1. Corun will automatically create `~/.corun/addons/` when needed
-2. Create a new library template:
+#### Option 1: Full Library Structure
+1. Create a new library template:
    ```bash
    corun library create my-tools "My Tools" "Personal utility commands"
    ```
-3. Edit the generated files in `~/.corun/addons/my-tools/`
-4. Add shell scripts with executable permissions
+2. Edit the generated files in `~/.corun/addons/my-tools/`
+3. Add shell scripts with executable permissions
+
+#### Option 2: Standalone Scripts (Simple)
+1. Corun will automatically create `~/.corun/addons/` when needed
+2. Copy any `.sh` script directly to `~/.corun/addons/`:
+   ```bash
+   cp my_script.sh ~/.corun/addons/
+   chmod +x ~/.corun/addons/my_script.sh
+   ```
+3. The script becomes available as `corun my_script`
+
+**Example Standalone Script:**
+```bash
+# ~/.corun/addons/hello.sh
+#!/bin/bash
+echo "Hello from standalone script!"
+echo "Current directory: $(pwd)"
+```
+
+After adding, use: `corun hello`
 
 ### Project Addons
 Create addons bundled with the project:
 
+#### Option 1: Full Library Structure
 1. Create a directory in `addons/` with your addon name (e.g., `addons/network_tools/`)
 2. Add `metadata.json`:
    ```json
@@ -148,10 +168,22 @@ Create addons bundled with the project:
 3. Add shell scripts (e.g., `ping.sh`, `trace.sh`) with executable permissions
 4. Install using `corun library install ./addons/network_tools --global`
 
-### Library Priority
-- **Project libraries** (./addons/) take precedence over user libraries
-- If both have the same library_id, only the project library will be loaded
-- This allows projects to override user libraries when needed
+#### Option 2: Standalone Scripts
+1. Place `.sh` scripts directly in `addons/` directory
+2. Scripts become available immediately (no restart needed)
+3. Example: `addons/deploy.sh` becomes `corun deploy`
+
+### Priority System
+- **Project scripts/libraries** (./addons/) take precedence over user scripts/libraries
+- **Library commands** take precedence over standalone scripts (if names conflict)
+- **Standalone scripts** in project directory override user directory scripts
+- This allows projects to override user addons when needed
+
+**Priority Order:**
+1. Project library commands (highest)
+2. User library commands  
+3. Project standalone scripts
+4. User standalone scripts (lowest)
 
 ## Development
 

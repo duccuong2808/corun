@@ -61,9 +61,47 @@ def run_shell_script(script_path, args=None):
             click.echo(f"Error: {e.stderr.rstrip()}", err=True)
         return False
     
-    except FileNotFoundError:
-        click.echo(f"Error: Cannot execute {script_path}. Check shebang or permissions.", err=True)
-        return False
+    except (FileNotFoundError, OSError) as e:
+        # If direct execution fails, try with bash explicitly (for shebang issues)
+        if "Exec format error" in str(e) or isinstance(e, FileNotFoundError):
+            try:
+                # Try running with bash
+                cmd = ["bash", str(script_path)]
+                if args:
+                    cmd.extend(args)
+                    
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    cwd=script_path.parent
+                )
+                
+                # Output stdout
+                if result.stdout:
+                    click.echo(result.stdout.rstrip())
+                
+                # Output stderr as warning (not error)
+                if result.stderr:
+                    click.echo(f"Warning: {result.stderr.rstrip()}", err=True)
+                    
+                return True
+                
+            except subprocess.CalledProcessError as bash_e:
+                click.echo(f"Error running script with bash {script_path}:", err=True)
+                click.echo(f"Exit code: {bash_e.returncode}", err=True)
+                if bash_e.stdout:
+                    click.echo(f"Output: {bash_e.stdout.rstrip()}", err=True)
+                if bash_e.stderr:
+                    click.echo(f"Error: {bash_e.stderr.rstrip()}", err=True)
+                return False
+            except Exception as bash_e:
+                click.echo(f"Error: Cannot execute {script_path}. Original error: {str(e)}, Bash error: {str(bash_e)}", err=True)
+                return False
+        else:
+            click.echo(f"Error: Cannot execute {script_path}. Check shebang or permissions. Error: {str(e)}", err=True)
+            return False
     
     except Exception as e:
         click.echo(f"Unexpected error running {script_path}: {str(e)}", err=True)

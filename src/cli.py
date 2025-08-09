@@ -60,13 +60,14 @@ def complete_library_command(ctx, param, incomplete):
     return [cmd for cmd in commands if cmd.startswith(incomplete)]
 
 
-def create_dynamic_command(script_path, library_commands=None):
+def create_dynamic_command(script_path, library_commands=None, is_standalone=False):
     """
     Create a dynamic Click command from a shell script.
     
     Args:
         script_path (Path): Path to the shell script
         library_commands (list): List of available commands in this library for autocomplete
+        is_standalone (bool): Whether this is a standalone script or part of a library
         
     Returns:
         click.Command: Dynamic Click command
@@ -88,7 +89,10 @@ def create_dynamic_command(script_path, library_commands=None):
     
     # Set function metadata for Click
     dynamic_command.__name__ = script_path.stem
-    dynamic_command.__doc__ = f"Run {script_path.stem} command from {script_path.parent.name} library."
+    if is_standalone:
+        dynamic_command.__doc__ = f"Run {script_path.stem} standalone script."
+    else:
+        dynamic_command.__doc__ = f"Run {script_path.stem} command from {script_path.parent.name} library."
     
     # Apply Click decorators after setting metadata
     return click.command(
@@ -341,6 +345,35 @@ def create(library_id, name, description, user, create_global):
         click.echo(f"Library template created in {location} directory.")
 
 
+def load_standalone_scripts():
+    """Load and register standalone script commands from library directories."""
+    loaded_scripts = set()  # Track loaded script names to avoid conflicts
+    
+    for library_path in get_library_paths():
+        if not library_path.exists():
+            continue
+            
+        # Look for standalone .sh files directly in the library path (not in subdirectories)
+        for script_file in library_path.glob("*.sh"):
+            if script_file.is_file():
+                script_name = script_file.stem
+                
+                # Skip if we've already loaded a script with this name (project scripts take precedence)
+                if script_name in loaded_scripts:
+                    continue
+                
+                # Skip if there's already a command or group with this name
+                if script_name in cli.commands:
+                    continue
+                    
+                try:
+                    command = create_dynamic_command(script_file, is_standalone=True)
+                    cli.add_command(command, name=script_name)
+                    loaded_scripts.add(script_name)
+                except Exception as e:
+                    click.echo(f"Warning: Could not load standalone script {script_name}: {e}", err=True)
+
+
 # Dynamically add command groups from library directories
 def load_library_commands():
     """Load and register command groups from library directories."""
@@ -371,8 +404,9 @@ def load_library_commands():
                     click.echo(f"Warning: Could not load library {library_dir.name}: {e}", err=True)
 
 
-# Load library commands when module is imported
+# Load library commands and standalone scripts when module is imported
 load_library_commands()
+load_standalone_scripts()
 
 
 if __name__ == "__main__":

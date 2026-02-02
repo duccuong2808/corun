@@ -153,3 +153,128 @@ def remove_library(
     # Remove
     shutil.rmtree(library.path)
     console.print(f"[green]✓ Removed library: {library_id}[/green]")
+
+
+@app.command("create")
+def create_library(
+    library_id: Optional[str] = typer.Argument(None, help="Library ID (folder name)"),
+    name: Optional[str] = typer.Option(None, "--name", "-n", help="Library name"),
+    description: Optional[str] = typer.Option(
+        None, "--description", "-d", help="Library description"
+    ),
+    author: Optional[str] = typer.Option(None, "--author", "-a", help="Author name"),
+    interactive: bool = typer.Option(
+        True, "--interactive/--no-interactive", "-i/-I", help="Interactive mode"
+    ),
+):
+    """Create a new library template."""
+    import json
+    import re
+
+    # Interactive mode
+    if interactive and library_id is None:
+        console.print("\n[bold cyan]📦 Create New Library[/bold cyan]\n")
+        
+        # Prompt for library ID
+        while True:
+            library_id = typer.prompt("Library ID (folder name)")
+            if re.match(r"^[a-zA-Z0-9_-]+$", library_id):
+                break
+            console.print(
+                "[red]Error: Library ID can only contain letters, numbers, underscores, and hyphens.[/red]"
+            )
+        
+        # Prompt for name (optional)
+        default_name = library_id.replace("_", " ").replace("-", " ").title()
+        name_input = typer.prompt(
+            f"Library name", 
+            default=default_name,
+            show_default=True
+        )
+        name = name_input if name_input else default_name
+        
+        # Prompt for description (optional)
+        description_input = typer.prompt(
+            "Description",
+            default=f"Custom library: {library_id}",
+            show_default=True
+        )
+        description = description_input if description_input else f"Custom library: {library_id}"
+        
+        # Prompt for author (optional)
+        author_input = typer.prompt(
+            "Author name",
+            default="Your Name",
+            show_default=True
+        )
+        author = author_input if author_input else "Your Name"
+        
+        console.print()  # Empty line
+    
+    # Non-interactive mode validation
+    if library_id is None:
+        console.print("[red]Error: Library ID is required in non-interactive mode.[/red]")
+        raise typer.Exit(1)
+    
+    # Validate library ID
+    if not re.match(r"^[a-zA-Z0-9_-]+$", library_id):
+        console.print(
+            "[red]Error: Library ID can only contain letters, numbers, underscores, and hyphens.[/red]"
+        )
+        raise typer.Exit(1)
+
+    # Target path
+    addons_dir = ensure_addons_dir()
+    target_path = addons_dir / library_id
+
+    # Check if exists
+    if target_path.exists():
+        console.print(f"[red]Error: Library '{library_id}' already exists.[/red]")
+        console.print(f"Path: {target_path}")
+        raise typer.Exit(1)
+
+    # Create directory
+    target_path.mkdir(parents=True)
+
+    # Generate metadata.json
+    metadata = {
+        "name": name or library_id.replace("_", " ").replace("-", " ").title(),
+        "version": "0.1.0",
+        "description": description or f"Custom library: {library_id}",
+        "library_id": library_id,
+        "author": author or "Your Name",
+        "shells": ["bash", "zsh"],
+        "commands": ["example"],
+    }
+
+    metadata_path = target_path / "metadata.json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    # Generate example.sh
+    example_script = """#!/bin/bash
+# Example command for {library_name}
+# Usage: corun {library_id} example [args...]
+
+echo "👋 Hello from {library_name}!"
+echo "Arguments: $@"
+""".format(
+        library_name=metadata["name"], library_id=library_id
+    )
+
+    example_path = target_path / "example.sh"
+    with open(example_path, "w") as f:
+        f.write(example_script)
+
+    # Make executable
+    example_path.chmod(0o755)
+
+    # Success message
+    console.print(f"[green]✓ Created library: {library_id}[/green]")
+    console.print(f"  Path: {target_path}")
+    console.print(f"  Name: {metadata['name']}")
+    console.print(f"  Author: {metadata['author']}")
+    console.print(f"\n[bold]Next steps:[/bold]")
+    console.print(f"  1. Edit: {metadata_path}")
+    console.print(f"  2. Add scripts: {target_path}/*.sh")
+    console.print(f"  3. Test: [cyan]corun {library_id} example[/cyan]")

@@ -89,12 +89,38 @@ def scan_standalone_scripts(addons_dir: Path) -> list[Command]:
     return scripts
 
 
-def scan_addons() -> tuple[list[Library], list[Command]]:
+def detect_conflicts(
+    libraries: list[Library], standalone: list[Command]
+) -> dict[str, tuple[Library, Command]]:
+    """
+    Detect naming conflicts between libraries and standalone scripts.
+
+    A conflict occurs when a standalone script has the same name as a library_id.
+    For example: tools.sh (standalone) conflicts with tools/ (library).
+
+    Args:
+        libraries: List of scanned libraries
+        standalone: List of standalone commands
+
+    Returns:
+        Dict mapping conflicting name to (library, standalone) tuple
+    """
+    conflicts: dict[str, tuple[Library, Command]] = {}
+    library_ids = {lib.library_id: lib for lib in libraries}
+
+    for cmd in standalone:
+        if cmd.name in library_ids:
+            conflicts[cmd.name] = (library_ids[cmd.name], cmd)
+
+    return conflicts
+
+
+def scan_addons() -> tuple[list[Library], list[Command], dict[str, tuple[Library, Command]]]:
     """
     Scan the addons directory for libraries and standalone scripts.
 
     Returns:
-        Tuple of (libraries, standalone_commands)
+        Tuple of (libraries, standalone_commands, conflicts)
     """
     addons_dir = ensure_addons_dir()
 
@@ -111,12 +137,15 @@ def scan_addons() -> tuple[list[Library], list[Command]]:
     # Scan standalone scripts
     standalone = scan_standalone_scripts(addons_dir)
 
-    return libraries, standalone
+    # Detect conflicts
+    conflicts = detect_conflicts(libraries, standalone)
+
+    return libraries, standalone, conflicts
 
 
 def get_library_by_id(library_id: str) -> Optional[Library]:
     """Get a library by its ID."""
-    libraries, _ = scan_addons()
+    libraries, _, _ = scan_addons()
     for lib in libraries:
         if lib.library_id == library_id:
             return lib

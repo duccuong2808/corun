@@ -47,6 +47,22 @@ def main(
     pass
 
 
+@app.command(name="completion")
+def completion_command(
+    shell: Optional[str] = typer.Argument(
+        None, help="Shell type (bash/zsh/fish). Auto-detect if not specified."
+    ),
+):
+    """
+    Show shell completion setup instructions.
+    
+    This command helps you set up tab completion for your shell.
+    """
+    from .completion import show_completion_help
+    
+    show_completion_help(shell)
+
+
 @app.command(name="run", hidden=True)
 def run_command(
     target: str = typer.Argument(..., help="Library ID or command name"),
@@ -116,12 +132,75 @@ def run_command(
     raise typer.Exit(1)
 
 
+def show_conflict_warning(conflicts: dict):
+    """Display startup warning about conflicts."""
+    if not conflicts:
+        return
+    
+    console.print("\n[yellow bold]⚠️  Naming conflicts detected![/yellow bold]")
+    for name, (lib, cmd) in conflicts.items():
+        console.print(f"   • [cyan]{name}[/cyan]: library [green]{lib.library_id}/[/green] vs standalone [dim]{cmd.script_path.name}[/dim]")
+    console.print("[dim]   Run 'corun library list' for details.[/dim]\n")
+
+
+def make_conflict_command(name: str, library, standalone_cmd):
+    """Create interactive command for conflicting names."""
+    
+    def conflict_func(
+        args: Optional[list[str]] = typer.Argument(
+            None, help="Arguments to pass to the script"
+        ),
+    ):
+        console.print(f"\n[yellow bold]⚠️  Conflict: '{name}' exists as both library and standalone[/yellow bold]\n")
+        console.print(f"  [cyan]1.[/cyan] Library [green]{library.library_id}/[/green] - {library.description}")
+        console.print(f"  [cyan]2.[/cyan] Standalone [dim]{standalone_cmd.script_path}[/dim]")
+        console.print()
+        
+        choice = typer.prompt(
+            "Which one do you want to run?",
+            type=str,
+            default="1",
+            show_default=True,
+        )
+        
+        if choice == "1":
+            # Show library commands
+            console.print(f"\n[bold]{library.name}[/bold] - {library.description}\n")
+            console.print("[bold]Available commands:[/bold]")
+            for cmd in library.commands:
+                console.print(f"  • [cyan]corun {library.library_id} {cmd.name}[/cyan]")
+            console.print()
+        elif choice == "2":
+            # Run standalone
+            exit_code = execute_script(standalone_cmd.script_path, args)
+            raise typer.Exit(exit_code)
+        else:
+            console.print("[red]Invalid choice. Exiting.[/red]")
+            raise typer.Exit(1)
+        
+        # Show fix suggestion
+        console.print("[dim]──────────────────────────────────────────[/dim]")
+        console.print("[bold]💡 To fix this conflict:[/bold]")
+        console.print(f"   Rename: [cyan]mv {standalone_cmd.script_path} {standalone_cmd.script_path.parent}/{name}_script.sh[/cyan]")
+        console.print(f"   Or remove: [cyan]rm {standalone_cmd.script_path}[/cyan]")
+        console.print()
+    
+    return conflict_func
+
+
 def register_dynamic_commands():
     """Register dynamic commands from scanned libraries."""
-    libraries, standalone = scan_addons()
+    libraries, standalone, conflicts = scan_addons()
+    
+    # Show conflict warnings at startup
+    show_conflict_warning(conflicts)
 
-    # Register library commands
+    # Register library commands (skip those with conflicts - they get interactive handler)
     for library in libraries:
+        if library.library_id in conflicts:
+            # Skip - will be handled by interactive conflict handler below
+            continue
+            
         # Create a sub-app for the library
         lib_app = typer.Typer(
             help=library.description,
@@ -148,8 +227,13 @@ def register_dynamic_commands():
 
         app.add_typer(lib_app, name=library.library_id)
 
-    # Register standalone commands
+    # Register standalone commands (those with conflicts get interactive handler)
     for cmd in standalone:
+        if cmd.name in conflicts:
+            # Register interactive conflict handler
+            lib, standalone_cmd = conflicts[cmd.name]
+            app.command(name=cmd.name)(make_conflict_command(cmd.name, lib, standalone_cmd))
+            continue
 
         def make_standalone(script_path):
             """Create standalone command with closure."""

@@ -24,7 +24,7 @@ console = Console()
 @app.command("list")
 def list_libraries():
     """List all installed libraries."""
-    libraries, standalone = scan_addons()
+    libraries, standalone, conflicts = scan_addons()
 
     if not libraries and not standalone:
         console.print("[yellow]No libraries or scripts installed.[/yellow]")
@@ -43,7 +43,26 @@ def list_libraries():
     if standalone:
         console.print("[bold]Standalone scripts:[/bold]\n")
         for cmd in standalone:
-            console.print(f"  • [cyan]{cmd.name}[/cyan]")
+            # Mark conflicting standalone scripts
+            if cmd.name in conflicts:
+                console.print(f"  • [yellow]{cmd.name}[/yellow] [dim](conflict)[/dim]")
+            else:
+                console.print(f"  • [cyan]{cmd.name}[/cyan]")
+    
+    # Show conflicts section with fix suggestions
+    if conflicts:
+        console.print("\n[yellow bold]⚠️  Naming conflicts detected:[/yellow bold]\n")
+        for name, (lib, cmd) in conflicts.items():
+            console.print(f"  • [yellow]{name}[/yellow]")
+            console.print(f"    Library: [green]{lib.library_id}/[/green] ({lib.name})")
+            console.print(f"    Standalone: [dim]{cmd.script_path}[/dim]")
+            console.print()
+        
+        console.print("[bold]💡 How to fix:[/bold]")
+        console.print("  Rename standalone scripts to avoid conflict:")
+        for name, (lib, cmd) in conflicts.items():
+            console.print(f"    [cyan]mv {cmd.script_path} {cmd.script_path.parent}/{name}_script.sh[/cyan]")
+        console.print()
 
 
 @app.command("info")

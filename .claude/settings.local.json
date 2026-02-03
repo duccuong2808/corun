@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bd list:*)",
+      "Bash(bd show:*)",
+      "Bash(bd close:*)",
+      "mcp__acp__Bash"
+    ]
+  }
+}

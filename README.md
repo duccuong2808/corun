@@ -1,6 +1,8 @@
-# Corun CLI
+# Corun
 
-> **Command Runner** - CLI tool để quản lý và chạy shell scripts
+> Chạy shell scripts dễ dàng từ terminal
+
+Corun giúp bạn quản lý và chạy các shell scripts như các lệnh CLI. Đặt scripts vào `~/.corun/addons/` và gọi chúng từ bất kỳ đâu.
 
 ## Cài đặt
 
@@ -8,37 +10,48 @@
 # Development
 pip install -e .
 
-# Production (soon)
+# Production (coming soon)
 pipx install corun
 ```
 
-## Sử dụng
+## Bắt đầu nhanh
 
 ```bash
-# Xem help
-corun --help
-
-# Quản lý libraries
+# Xem danh sách libraries và scripts có sẵn
 corun library list
-corun library info <library_id>
-corun library install /path/to/library
-corun library remove <library_id>
 
-# Chạy commands
+# Chạy lệnh từ library
 corun <library_id> <command> [args...]
-corun <standalone_script> [args...]
+
+# Chạy standalone script
+corun <script_name> [args...]
 ```
 
-## Cấu trúc Addons
+### Ví dụ
 
+```bash
+# Giả sử bạn có library "git-utils" với command "cleanup"
+corun git-utils cleanup
+
+# Giả sử bạn có standalone script "backup.sh"
+corun backup --full
 ```
-~/.corun/addons/
-├── my_lib/
-│   ├── metadata.json
-│   ├── cmd1.sh
-│   └── cmd2.sh
-└── standalone.sh
-```
+
+## Quick Reference
+
+| Lệnh | Mô tả |
+|------|-------|
+| `corun --help` | Hiển thị trợ giúp |
+| `corun -v` | Hiển thị phiên bản |
+| `corun library list` | Danh sách tất cả libraries và scripts |
+| `corun library info <id>` | Xem chi tiết library |
+| `corun library install <path>` | Cài đặt library từ đường dẫn |
+| `corun library remove <id>` | Gỡ bỏ library |
+| `corun completion [shell]` | Cài đặt tab completion cho shell |
+
+## Muốn tạo Library riêng?
+
+Xem hướng dẫn chi tiết tại [README.developer.md](README.developer.md)
 
 ## License
 

@@ -5,6 +5,39 @@ import subprocess
 import sys
 from pathlib import Path
 
+# ANSI codes
+ITALIC = '\033[3m'
+RESET = '\033[0m'
+
+
+def has_shebang(script_path: Path) -> bool:
+    """
+    Check if a script has a shebang line.
+
+    Args:
+        script_path: Path to the shell script
+
+    Returns:
+        True if script starts with #!, False otherwise
+    """
+    try:
+        with open(script_path, 'rb') as f:
+            first_bytes = f.read(2)
+            return first_bytes == b'#!'
+    except Exception:
+        return False
+
+
+def get_default_shell() -> str:
+    """
+    Get the default shell to use for scripts without shebang.
+
+    Returns:
+        Path to user's shell (from $SHELL) or /bin/bash as fallback
+    """
+    shell = os.environ.get('SHELL', '/bin/bash')
+    return shell
+
 
 def execute_script(script_path: Path, args: list[str] | None = None) -> int:
     """
@@ -26,8 +59,16 @@ def execute_script(script_path: Path, args: list[str] | None = None) -> int:
         print(f"\nTo fix, run:\n  chmod +x {script_path}", file=sys.stderr)
         return 1
 
-    # Build command
-    cmd = [str(script_path)]
+    # Check for shebang
+    if not has_shebang(script_path):
+        shell = get_default_shell()
+        print(f"{ITALIC}Warning: '{script_path.name}' missing shebang, using {shell}{RESET}\n", file=sys.stderr)
+        # Build command with explicit shell
+        cmd = [shell, str(script_path)]
+    else:
+        # Build command normally
+        cmd = [str(script_path)]
+
     if args:
         cmd.extend(args)
 

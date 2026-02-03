@@ -4,7 +4,9 @@
       "Bash(bd list:*)",
       "Bash(bd show:*)",
       "Bash(bd close:*)",
-      "mcp__acp__Bash"
+      "mcp__acp__Bash",
+      "Bash(bd stats:*)",
+      "Bash(bd sync:*)"
     ]
   }
 }

@@ -2,8 +2,8 @@
 
 > Chạy shell scripts dễ dàng từ terminal
 
-Corun giúp bạn quản lý và chạy các shell scripts như các lệnh CLI. Đặt scripts vào `~/.corun/addons/` và gọi chúng từ bất kỳ đâu.
-
+Corun giúp bạn lưu trữ và chạy lại các shell scripts như các lệnh CLI.
+Đặt scripts vào `~/.corun/addons/` và gọi chúng từ bất kỳ đâu.
 ## Cài đặt
 
 ```bash
